@@ -1,0 +1,203 @@
+{
+  "app_name": "HireAvatar",
+  "personality": "6 Glass / Luxe DARK (Customized for HireAvatar brand)",
+  "personality_one_liner": "A premium, dark-themed, glass-layered marketplace that feels cinematic and deeply professional, highlighting the talent.",
+  "color": {
+    "surface": "#0A0528",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "rgba(255, 255, 255, 0.15)",
+    "onSurfaceSecondary": "#FFFFFF",
+    "surfaceTertiary": "rgba(255, 255, 255, 0.08)",
+    "onSurfaceTertiary": "#FFFFFF",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#0A0528",
+    "brand": "#FF5FA2",
+    "brandPrimary": "#FFFFFF",
+    "onBrandPrimary": "#2E1C8C",
+    "brandSecondary": "#FF5FA2",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#7C5CFF",
+    "onBrandTertiary": "#FFFFFF",
+    "success": "#5CE0A0",
+    "onSuccess": "#000000",
+    "warning": "#FBBF24",
+    "onWarning": "#000000",
+    "error": "#EF4444",
+    "onError": "#FFFFFF",
+    "info": "#3B82F6",
+    "onInfo": "#FFFFFF",
+    "border": "rgba(255, 255, 255, 0.1)",
+    "borderStrong": "rgba(255, 255, 255, 0.25)",
+    "divider": "rgba(255, 255, 255, 0.05)",
+    "muted": "rgba(255, 255, 255, 0.6)",
+    "onBrand": "#FFFFFF"
+  },
+  "typography": {
+    "displayFontFamily": "Outfit",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32
+    }
+  },
+  "spacing": {
+    "rule": "Generous spacing. Allow cards to breathe. Stick to predictable rhythms.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 8,
+    "md": 12,
+    "lg": 22,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use glass heavily for elevated surfaces like bottom tabs, sticky headers, and featured presenter cards.",
+      "Ensure backdrop images are abstract enough under glass to keep text readable."
+    ],
+    "dont's": [
+      "Don't stack glass on glass.",
+      "Don't use glass for standard form inputs or primary text regions."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Welcome",
+      "purpose": "Land users in a cinematic entry experience.",
+      "states": {
+        "loading": "Centered logo pulse",
+        "empty": "N/A",
+        "error": "Standard alert toast"
+      },
+      "layout": "Full-bleed background image with vertical gradient scrim (transparent to surfaceInverse) at bottom. A massive Outfit display title (max weight 500). Bottom area features a white pill CTA 'Get Started' spanning full width."
+    },
+    {
+      "name": "SignIn",
+      "purpose": "Clerk authentication via Google + Email code.",
+      "states": {
+        "loading": "Spinner in the CTA",
+        "empty": "N/A",
+        "error": "Error toast or inline red text"
+      },
+      "layout": "Simple column layout centered in screen. Dark gradient background, glass container for the login forms. 54px tall pill buttons."
+    },
+    {
+      "name": "RoleChoice",
+      "purpose": "Allow user to choose between Presenter or Business.",
+      "states": {
+        "loading": "Spinner in selection",
+        "empty": "N/A",
+        "error": "Toast on failure"
+      },
+      "layout": "Two large glass cards side-by-side or stacked vertically. Gradient icon tiles inside cards (#7C5CFF -> #FF5FA2 and #3B82F6 -> #7C5CFF). Bottom sticky continue button."
+    },
+    {
+      "name": "Browse",
+      "purpose": "Grid of presenters with category chips and search.",
+      "states": {
+        "loading": "Skeleton masonry grid",
+        "empty": "No presenters found icon + clear filters",
+        "error": "Failed to load feed + retry"
+      },
+      "layout": "Top sticky glass header with search bar and horizontal scroll view of category chips. Main body is a 2-column flexWrap grid. Presenter cards use surfaceSecondary (bg-white/15), 22px radius, with cover image, green online dot (#5CE0A0), and name."
+    },
+    {
+      "name": "PresenterProfile",
+      "purpose": "Show presenter details and 3 hiring plans.",
+      "states": {
+        "loading": "Skeleton profile layout",
+        "empty": "N/A",
+        "error": "Failed to load profile + retry"
+      },
+      "layout": "Hero image banner with gradient scrim. Avatar overlaps banner. Bio text. Scrollable vertical list of 3 hiring plans (Per Video, Part-time, Full-time) rendered as glass cards. Price pills are white with #3B25A8 text. Sticky white CTA pill at bottom to 'Hire'."
+    },
+    {
+      "name": "SendOffer",
+      "purpose": "Form to send offer sheet.",
+      "states": {
+        "loading": "Spinner on submit button",
+        "empty": "N/A",
+        "error": "Validation errors inline"
+      },
+      "layout": "Form elements inside a KeyboardAvoidingView. Inputs use surfaceTertiary. Bottom sticky white CTA."
+    },
+    {
+      "name": "OffersInbox",
+      "purpose": "List of received/sent offers.",
+      "states": {
+        "loading": "Skeleton list",
+        "empty": "Empty inbox illustration + 'No offers yet'",
+        "error": "Failed to load offers + retry"
+      },
+      "layout": "Vertical list view. Each row is a glass card. Status pills indicate accept/decline. Clear visual hierarchy."
+    },
+    {
+      "name": "Messages",
+      "purpose": "Chat list and threads.",
+      "states": {
+        "loading": "Skeleton rows",
+        "empty": "Empty chat illustration",
+        "error": "Failed to load chats + retry"
+      },
+      "layout": "List view of chats. Chat thread uses surface for background. Glass header. Message bubbles use brandTertiary for user, surfaceSecondary for presenter."
+    },
+    {
+      "name": "MyProfile",
+      "purpose": "Edit profile, bio, prices.",
+      "states": {
+        "loading": "Skeleton form",
+        "empty": "N/A",
+        "error": "Failed to save + retry"
+      },
+      "layout": "Vertical scroll. Avatar picker at top. Glass cards wrapping different sections (Photos, Bio, Categories)."
+    }
+  ],
+  "images": {
+    "presenter_1": {
+      "url": "https://images.unsplash.com/photo-1699899657680-421c2c2d5064?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBwcmVzZW50ZXIlMjBoZWFkc2hvdHxlbnwwfHx8fDE3OTUzMTczNDV8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Professional blonde presenter woman"
+    },
+    "presenter_2": {
+      "url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBwcmVzZW50ZXIlMjBoZWFkc2hvdHxlbnwwfHx8fDE3OTUzMTczNDV8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Professional presenter man"
+    },
+    "bg_dark": {
+      "url": "https://images.unsplash.com/photo-1575318080244-dd217d9db1e2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwxfHxkYXJrJTIwcHVycGxlJTIwYWVzdGhldGljJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3OTUzMTczNDZ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark purple aesthetic background"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the explicitly provided colors: surface (#0A0528), brand (#FF5FA2), and the unique brandPrimary CTA pairing (#FFFFFF button with #2E1C8C text) to match the hireavatar.co webapp.",
+    "Implement glassy rounded cards everywhere possible for containers, specifically mapping to surfaceSecondary (bg-white/15 equivalent) with a 22px border radius.",
+    "Ensure all buttons are 54px tall with fully rounded pill borders.",
+    "Use 'Outfit' for display titles and 'Plus Jakarta Sans' for body text. Remember the font weight cap rule (max 500) and simulate 'extrabold' visually by using larger font sizes (e.g. 2xl, 3xl).",
+    "In the 'Browse' and 'RoleChoice' screens, utilize the requested gradients on icon tiles (#7C5CFF to #FF5FA2 and #3B82F6 to #7C5CFF).",
+    "Navigation should use NativeTabs (on iOS 26+) or JS Tabs with the specific tabs: Browse, Offers, Messages, Profile."
+  ]
+}

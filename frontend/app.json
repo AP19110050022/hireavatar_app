@@ -1,22 +1,28 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "HireAvatar",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "scheme": "hireavatar",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.hireavatarapp.wg0jtr"
+      "bundleIdentifier": "com.emergent.hireavatarapp.wg0jtr",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Add photos to your presenter profile"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#0A0528"
       },
-      "package": "com.emergent.hireavatarapp.wg0jtr"
+      "package": "com.emergent.hireavatarapp.wg0jtr",
+      "permissions": [
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -31,14 +37,22 @@
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#0A0528"
         }
       ],
       "expo-font",
       "expo-image",
       "expo-secure-store",
       "expo-web-browser",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@clerk/expo",
+      "@react-native-vector-icons/ionicons",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Add photos to your presenter profile"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

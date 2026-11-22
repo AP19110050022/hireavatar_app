@@ -1,0 +1,58 @@
+{
+  "summary": "Iteration 1. Backend: 18 pytest cases run against the public URL, covering auth/401, role selection for both roles, the catalogue, presenter edit, upload and file fetch, offers and accept/decline, conversations and messages, and the non-participant 404. 17/18 pass. The one failure is a real bug: /api/presenters paging is non-deterministic because many presenters share the same created_at, so skip/limit pages overlap and some presenters never show up. It fails every time (4/4 runs). Frontend (390x844 web preview): the Welcome screen loads 8 presenter photos with INR prices. All 4 entry points (signup, signin, login, plan rows) plus the strip cards open /sign-in and show the sign-in-not-configured card. The back button works when there is history. All 9 protected routes redirect to Welcome when signed out. Opening /sign-in directly and tapping back does nothing and shows the error 'The action GO_BACK was not handled'. No deprecated Expo packages found (expo-av, expo-barcode-scanner, expo-background-fetch). No react-native SafeAreaView usage found.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/presenters", "issue": "Paging is non-deterministic. The sort is [(is_seed,1),(created_at,-1)], and seed presenters share created_at values to the millisecond (seed_presenter_3/4/5 = .218, 6/7/8 = .219). Results: skip=0,limit=3 -> {test_presenter_1, seed_7, seed_8}; skip=3,limit=3 -> {seed_4, seed_5, seed_7}. seed_7 appears twice and seed_6 is missing. Browse uses useInfiniteQuery with skip paging and keyExtractor=user_id, so this causes duplicate keys and missing presenters. Fix: add a unique tiebreaker, e.g. .sort([('is_seed',1),('created_at',-1),('user_id',1)]) at server.py:318.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/offers (conv_for)", "issue": "Race condition: two concurrent first offers to the same presenter both miss find_one, and the second insert fails on the unique 'pair' index (DuplicateKeyError, so a 500). Use update_one(..., upsert=True, $setOnInsert) or catch DuplicateKeyError. server.py:375-384"},
+      {"endpoint": "GET list endpoints (offers/conversations/messages)", "issue": "Datetimes read from Mongo are returned naive with no timezone (e.g. '2026-11-22T03:24:22.184000'), while POST responses are tz-aware ('...Z'). offers.tsx:58 calls new Date(item.created_at) without adding Z, so it is parsed as local time. Fix with AsyncIOMotorClient(MONGO_URL, tz_aware=True)."},
+      {"endpoint": "POST /api/me/role (presenter)", "issue": "A blank presenter profile is created and is listed publicly in /api/presenters right away, with no photo, headline or city and default prices. Consider hiding it until the profile is completed. server.py:301-305"},
+      {"endpoint": "PUT /api/presenters/me", "issue": "Offers and conversations keep copies of presenter_name/presenter_photo/business_name that are never updated when the profile is edited, so the chat list and offers show stale names and photos. photos[] also accepts any string (no URL validation)."},
+      {"endpoint": "POST /api/upload", "issue": "The image check trusts the client Content-Type header (no magic-byte check). The whole body is read into memory before the 8MB check, and any role (including business) can upload."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "SignInScreen back button", "issue": "When /sign-in is opened directly (deep link, web refresh, or cold start), router.back() has no history, so the error toast 'The action GO_BACK was not handled' appears and the user is stuck. Use router.canGoBack() ? router.back() : router.replace('/'). app/sign-in.tsx:30", "testID": "sign-in-back-button", "priority": "MEDIUM"},
+      {"component": "PressScale (src/components/ui.tsx:32-39)", "issue": "The style is applied to the inner Animated.View, not to the Pressable. The Pressable stretches across its parent: the sign-in back button's tap area is 358x44 instead of 44x44, so tapping anywhere across the top bar goes back. Button margins become tappable (welcome-signin-button area is 66px tall vs 54 visible). Layout props like flex:1 (chat-title-button, chat/[id].tsx:59) don't reach the Pressable, so long titles may not truncate. Fix: put layout styles (margin, flex, alignSelf, width) on the Pressable, or set alignSelf:'flex-start' where needed.", "testID": "sign-in-back-button, welcome-signin-button, chat-title-button", "priority": "MEDIUM"},
+      {"component": "SendOffer screen", "issue": "`if (!q.data) return <Loading/>`: if the presenter fetch fails (404 or network error), the user sees an endless spinner with no error message and no close/back button. app/offer/[presenterId].tsx:55", "testID": "send-offer-screen", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Browse infinite scroll", "issue": "Because of the backend sort tie (see backend critical), pages overlap and skip presenters. The FlatList gets duplicate user_id keys and some presenters never render.", "affected_testIDs": ["browse-grid"]},
+      {"flow": "Auth bridge", "issue": "auth.tsx:49: if /api/me fails while Clerk reports signed in, status becomes 'signedOut' but the Clerk session stays. The user lands on Welcome, then Sign-in shows ClerkForm for a user who is already signed in, and Clerk will throw an 'already signed in' error. Show a retry/sign-out state instead.", "affected_testIDs": ["welcome-screen", "sign-in-screen"]}
+    ],
+    "design_issues": [
+      {"screen": "Welcome", "issues": ["welcome-login-button is 74x40, below the 44pt minimum touch target (index.tsx:101 height:40)", "Plan descriptions are cut off by numberOfLines={1} ('One finished video, from the presenter…', 'Your dedicated face, up to 20 videos a…')", "The requested pink accent barely appears; the palette is mostly indigo/violet, with pink only in the logo dot and a gradient tile"]},
+      {"screen": "Unknown routes", "issues": ["There is no app/+not-found.tsx, so unknown URLs show Expo's default black 'Unmatched Route' page with a 'Sitemap' link, which looks off-brand"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_hireavatar_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "HIGH: add a unique sort tiebreaker to GET /api/presenters (server.py:318): .sort([('is_seed',1),('created_at',-1),('user_id',1)])",
+    "MEDIUM: sign-in back button: use router.canGoBack() ? router.back() : router.replace('/') (also check the other router.back() calls on screens that can be deep-linked: chat, offer, presenter, edit-profile)",
+    "MEDIUM: fix PressScale so layout styles go on the Pressable (hit areas currently stretch full width)",
+    "MEDIUM: add error state and close button to offer/[presenterId].tsx when the presenter query fails",
+    "LOW: AsyncIOMotorClient(tz_aware=True) so datetimes always carry a timezone",
+    "LOW: make conversation creation idempotent (upsert) to avoid DuplicateKeyError 500",
+    "LOW: welcome login button height >=44, add +not-found.tsx, reconsider truncated plan descriptions and pink accent usage",
+    "LOW: consider hiding empty auto-created presenter profiles from public browse until they are completed"
+  ],
+  "critical_code_review_comments": [
+    "server.py:318 sort has no unique tiebreaker, so skip/limit paging is unstable",
+    "server.py:375-384 conv_for check-then-insert race against the unique index",
+    "server.py:29 motor client is not tz_aware, so list and create endpoints return datetimes in different formats",
+    "ui.tsx:32-39 PressScale applies style to the inner view, so Pressable hit areas are wrong",
+    "auth.tsx:49 a /me error is treated as signedOut while the Clerk session is still active",
+    "offer/[presenterId].tsx:55 no error state for the query",
+    "No deprecated expo packages found; KeyboardAvoidingView/KeyboardAwareScrollView from react-native-keyboard-controller are used correctly in chat and offer"
+  ],
+  "updated_files": ["/app/backend/tests/test_hireavatar_api.py (new)"],
+  "success_rate": {"backend": "94% (17/18)", "frontend": "92% (public flow: 12/13 checks pass; deep-link back fails)"},
+  "seed_data_creation": "Tests insert temporary TEST_ users and sessions into Mongo (role null, then presenter/business), plus TEST_ offers, conversations and messages. All are deleted by exact ids in the session teardown, and cleanup was verified (0 TEST_ records left). The uploaded test image's object stays in Emergent object storage; its DB record was removed. Seed presenters and the existing test_business_1<->test_presenter_1 offer were not touched.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && python -m pytest tests/test_hireavatar_api.py -v. test_presenters_list_and_paging should pass once the sort tiebreaker is added. Clerk keys are not configured, so signed-in screens can't be reached in the UI; only the API was tested with the seeded tokens (test_token_business, test_token_presenter). Backend uvicorn reloads when files in backend/tests change (watchfiles). That is harmless, but avoid editing tests while a run is in progress.",
+  "rca_of_issue": "Paging: seed() inserts 8 presenters in a tight loop, so Mongo's millisecond datetime precision produces identical created_at values. With no unique sort key, MongoDB returns tied documents in arbitrary order for each skip/limit query. Repro: GET /api/presenters?skip=0&limit=3 and ?skip=3&limit=3 return overlapping ids. Fix: add user_id (or _id) as the final sort key."
+}
