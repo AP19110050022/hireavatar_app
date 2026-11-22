@@ -1,19 +1,31 @@
 import { useAuth, useUser } from "@clerk/expo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { createContext, useCallback, useContext, useMemo } from "react";
+import { reloadAppAsync } from "expo";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { request, User } from "@/src/api";
 
 const RAW_KEY = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || "").trim();
 // Only a real publishable key turns Clerk on; anything else keeps the app usable in "not configured" mode.
 export const CLERK_KEY = /^pk_(test|live)_[A-Za-z0-9+/=_-]+$/.test(RAW_KEY) ? RAW_KEY : "";
+export const CLERK_FRONTEND_API = (() => {
+  if (!CLERK_KEY) return "";
+  try {
+    const encoded = CLERK_KEY.split("_", 3)[2].replace(/-/g, "+").replace(/_/g, "/");
+    return atob(encoded + "=".repeat((4 - (encoded.length % 4)) % 4)).replace(/\$$/, "");
+  } catch {
+    return "";
+  }
+})();
 
 type AuthState = {
-  status: "loading" | "signedOut" | "signedIn";
+  status: "loading" | "signedOut" | "signedIn" | "recovery";
   me: User | null;
   configured: boolean;
+  error: string;
   getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
+  retry: () => Promise<void>;
   setMe: (u: User) => void;
 };
 
@@ -38,6 +50,15 @@ function ClerkBridge({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn, getToken, signOut } = useAuth();
   const { user } = useUser();
   const qc = useQueryClient();
+  const [initializationTimedOut, setInitializationTimedOut] = useState(false);
+  useEffect(() => {
+    if (isLoaded) {
+      setInitializationTimedOut(false);
+      return;
+    }
+    const timeout = setTimeout(() => setInitializationTimedOut(true), 15000);
+    return () => clearTimeout(timeout);
+  }, [isLoaded]);
   const meQ = useQuery({
     queryKey: ["me"],
     enabled: !!isSignedIn,
@@ -54,24 +75,33 @@ function ClerkBridge({ children }: { children: React.ReactNode }) {
       });
     },
   });
+  const { data, error, isError, refetch } = meQ;
 
   const value = useMemo<AuthState>(() => {
     let status: AuthState["status"] = "loading";
-    if (isLoaded && !isSignedIn) status = "signedOut";
-    else if (isLoaded && isSignedIn && meQ.data) status = "signedIn";
-    else if (isLoaded && isSignedIn && meQ.isError) status = "signedOut";
+    if (initializationTimedOut && !isLoaded) status = "recovery";
+    else if (isLoaded && !isSignedIn) status = "signedOut";
+    else if (isLoaded && isSignedIn && data) status = "signedIn";
+    else if (isLoaded && isSignedIn && isError) status = "recovery";
     return {
       status,
-      me: isSignedIn ? meQ.data ?? null : null,
+      me: isSignedIn ? data ?? null : null,
       configured: true,
+      error: initializationTimedOut && !isLoaded
+        ? "We couldn’t reach the secure sign-in service. Please try again once your connection is restored."
+        : error instanceof Error ? error.message : "We couldn’t connect your account.",
       getToken: () => getToken(),
       signOut: async () => {
         await signOut();
         qc.clear();
       },
+      retry: async () => {
+        if (initializationTimedOut && !isLoaded) await reloadAppAsync();
+        else await refetch();
+      },
       setMe: (u) => qc.setQueryData(["me"], u),
     };
-  }, [isLoaded, isSignedIn, meQ.data, meQ.isError, getToken, signOut, qc]);
+  }, [isLoaded, isSignedIn, initializationTimedOut, data, isError, error, refetch, getToken, signOut, qc]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -80,12 +110,14 @@ const unconfigured: AuthState = {
   status: "signedOut",
   me: null,
   configured: false,
+  error: "",
   getToken: async () => null,
   signOut: async () => {},
+  retry: async () => {},
   setMe: () => {},
 };
 
-export function AppAuthProvider({ children }: { children: React.ReactNode }) {
-  if (!CLERK_KEY) return <Ctx.Provider value={unconfigured}>{children}</Ctx.Provider>;
+export function AppAuthProvider({ children, enabled = true }: { children: React.ReactNode; enabled?: boolean }) {
+  if (!CLERK_KEY || !enabled) return <Ctx.Provider value={unconfigured}>{children}</Ctx.Provider>;
   return <ClerkBridge>{children}</ClerkBridge>;
 }

@@ -1,8 +1,10 @@
 import asyncio
+import io
 import logging
 import os
 import re
 import uuid
+import warnings
 from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,8 +18,10 @@ from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Query, Req
 from fastapi.concurrency import run_in_threadpool
 from jwt import PyJWKClient
 from motor.motor_asyncio import AsyncIOMotorClient
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
-from pymongo import ASCENDING, DESCENDING, IndexModel
+from pymongo import ASCENDING, DESCENDING, IndexModel, ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from starlette.middleware.cors import CORSMiddleware
 
 ROOT_DIR = Path(__file__).parent
@@ -26,7 +30,7 @@ load_dotenv(ROOT_DIR / ".env")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+client = AsyncIOMotorClient(os.environ["MONGO_URL"], tz_aware=True)
 db = client[os.environ["DB_NAME"]]
 
 CLERK_SECRET_KEY = os.environ.get("CLERK_SECRET_KEY", "")
@@ -133,6 +137,17 @@ class PresenterUpdate(BaseModel):
     price_per_video: int = Field(ge=100, le=10_000_000)
     price_part_time: int = Field(ge=100, le=10_000_000)
     price_full_time: int = Field(ge=100, le=10_000_000)
+
+
+def profile_is_public(data: dict) -> bool:
+    """A newly chosen presenter role should not expose an empty marketplace card."""
+    return bool(data.get("name", "").strip()) and any(
+        [data.get("headline", "").strip(), data.get("bio", "").strip(), data.get("city", "").strip(), data.get("photos"), data.get("categories")]
+    )
+
+
+def valid_photo_urls(photos: List[str]) -> bool:
+    return all(url.startswith("/api/files/") or url.startswith("https://") for url in photos)
 
 
 class OfferIn(BaseModel):
@@ -343,6 +358,7 @@ async def set_role(body: RoleIn, user: User = Auth):
         p = Presenter(user_id=user.user_id, name=user.name or user.email.split("@")[0] or "Presenter",
                       photos=[user.picture] if user.picture else [], online=True).model_dump()
         p["created_at"] = now()
+        p["is_listed"] = False
         await db.presenters.insert_one(p)
     doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
     return User(**doc)
@@ -350,12 +366,13 @@ async def set_role(body: RoleIn, user: User = Auth):
 
 @api.get("/presenters", response_model=List[Presenter])
 async def list_presenters(q: str = "", category: str = "", skip: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=50)):
-    query: dict = {}
+    filters: list[dict] = [{"$or": [{"is_seed": True}, {"is_listed": True}]}]
     if category and category != "All":
-        query["categories"] = category
+        filters.append({"categories": category})
     if q.strip():
         rx = {"$regex": re.escape(q.strip()), "$options": "i"}
-        query["$or"] = [{"name": rx}, {"headline": rx}, {"city": rx}, {"categories": rx}]
+        filters.append({"$or": [{"name": rx}, {"headline": rx}, {"city": rx}, {"categories": rx}]})
+    query = filters[0] if len(filters) == 1 else {"$and": filters}
     docs = await db.presenters.find(query, {"_id": 0}).sort([("is_seed", ASCENDING), ("created_at", DESCENDING), ("user_id", ASCENDING)]).skip(skip).limit(limit).to_list(limit)
     return [Presenter(**d) for d in docs]
 
@@ -374,8 +391,14 @@ async def update_presenter(body: PresenterUpdate, user: User = Auth):
         raise HTTPException(403, "Only presenters can edit a presenter profile")
     data = body.model_dump()
     data["categories"] = [c for c in data["categories"] if c in CATEGORIES]
+    if not valid_photo_urls(data["photos"]):
+        raise HTTPException(422, "Photos must be secure image URLs uploaded through HireAvatar")
+    data["is_listed"] = profile_is_public(data)
     await db.presenters.update_one({"user_id": user.user_id}, {"$set": data, "$setOnInsert": {"created_at": now(), "user_id": user.user_id}}, upsert=True)
     doc = await db.presenters.find_one({"user_id": user.user_id}, {"_id": 0})
+    photo = (doc.get("photos") or [""])[0]
+    await db.offers.update_many({"presenter_id": user.user_id}, {"$set": {"presenter_name": doc["name"], "presenter_photo": photo}})
+    await db.conversations.update_many({"presenter_id": user.user_id}, {"$set": {"presenter_name": doc["name"], "presenter_photo": photo}})
     return Presenter(**doc)
 
 
@@ -389,15 +412,38 @@ async def get_presenter(presenter_id: str):
 
 @api.post("/upload")
 async def upload(file: UploadFile = File(...), user: User = Auth):
-    if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(400, "Only images are allowed")
-    data = await file.read()
-    if len(data) > 8 * 1024 * 1024:
-        raise HTTPException(413, "Image must be under 8 MB")
-    ext = (file.filename or "photo.jpg").rsplit(".", 1)[-1].lower()[:5] or "jpg"
+    if user.role != "presenter":
+        raise HTTPException(403, "Only presenters can upload profile photos")
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(1024 * 1024):
+        total += len(chunk)
+        if total > 8 * 1024 * 1024:
+            raise HTTPException(413, "Image must be under 8 MB")
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    if not data:
+        raise HTTPException(400, "Image file is empty")
+    formats = {
+        "PNG": ("image/png", "png"),
+        "JPEG": ("image/jpeg", "jpg"),
+        "GIF": ("image/gif", "gif"),
+        "WEBP": ("image/webp", "webp"),
+    }
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data)) as image:
+                image.verify()
+                media = formats.get(image.format or "")
+    except (UnidentifiedImageError, Image.DecompressionBombWarning, OSError, ValueError):
+        media = None
+    if not media:
+        raise HTTPException(400, "Only valid PNG, JPEG, GIF, and WebP images are allowed")
+    content_type, ext = media
     path = f"{APP_NAME}/uploads/{user.user_id}/{uuid.uuid4().hex}.{ext}"
-    result = await run_in_threadpool(put_object, path, data, file.content_type)
-    await db.files.insert_one({"storage_path": result["path"], "owner_id": user.user_id, "content_type": file.content_type,
+    result = await run_in_threadpool(put_object, path, data, content_type)
+    await db.files.insert_one({"storage_path": result["path"], "owner_id": user.user_id, "content_type": content_type,
                                "original_filename": file.filename, "created_at": now()})
     return {"url": f"/api/files/{result['path']}"}
 
@@ -414,15 +460,20 @@ async def download(path: str):
 
 # ---------------------------------------------------------------- offers & chat
 async def conv_for(business: User, presenter: dict) -> str:
-    existing = await db.conversations.find_one({"business_id": business.user_id, "presenter_id": presenter["user_id"]}, {"_id": 0})
-    if existing:
-        return existing["conversation_id"]
     c = Conversation(conversation_id=new_id("conv"), business_id=business.user_id,
                      business_name=business.business_name or business.name or "Business",
                      presenter_id=presenter["user_id"], presenter_name=presenter["name"],
                      presenter_photo=(presenter.get("photos") or [""])[0], updated_at=now())
-    await db.conversations.insert_one(c.model_dump())
-    return c.conversation_id
+    pair = {"business_id": business.user_id, "presenter_id": presenter["user_id"]}
+    try:
+        await db.conversations.update_one(pair, {"$setOnInsert": c.model_dump()}, upsert=True)
+    except DuplicateKeyError:
+        # A competing first offer created the pair after our upsert check; use that conversation.
+        pass
+    existing = await db.conversations.find_one(pair, {"_id": 0, "conversation_id": 1})
+    if not existing:
+        raise HTTPException(503, "Couldn't start the conversation. Please try again.")
+    return existing["conversation_id"]
 
 
 PLAN_LABEL = {"per_video": "Per Video", "part_time": "Part-time", "full_time": "Full-time"}
@@ -452,23 +503,27 @@ async def list_offers(status: str = "", skip: int = Query(0, ge=0), limit: int =
     query: dict = {"$or": [{"business_id": user.user_id}, {"presenter_id": user.user_id}]}
     if status in ("pending", "accepted", "declined"):
         query["status"] = status
-    docs = await db.offers.find(query, {"_id": 0}).sort("created_at", DESCENDING).skip(skip).limit(limit).to_list(limit)
+    docs = await db.offers.find(query, {"_id": 0}).sort([("created_at", DESCENDING), ("offer_id", ASCENDING)]).skip(skip).limit(limit).to_list(limit)
     return [Offer(**d) for d in docs]
 
 
 @api.post("/offers/{offer_id}/respond", response_model=Offer)
 async def respond_offer(offer_id: str, body: RespondIn, user: User = Auth):
-    o = await db.offers.find_one({"offer_id": offer_id}, {"_id": 0})
-    if not o or o["presenter_id"] != user.user_id:
-        raise HTTPException(404, "Offer not found")
-    if o["status"] != "pending":
-        raise HTTPException(400, "Offer already answered")
     status = "accepted" if body.action == "accept" else "declined"
-    await db.offers.update_one({"offer_id": offer_id}, {"$set": {"status": status}})
+    o = await db.offers.find_one_and_update(
+        {"offer_id": offer_id, "presenter_id": user.user_id, "status": "pending"},
+        {"$set": {"status": status}},
+        projection={"_id": 0},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not o:
+        existing = await db.offers.find_one({"offer_id": offer_id}, {"_id": 0, "presenter_id": 1})
+        if not existing or existing["presenter_id"] != user.user_id:
+            raise HTTPException(404, "Offer not found")
+        raise HTTPException(400, "Offer already answered")
     text = f"Offer {status} · {PLAN_LABEL.get(o['plan'], o['plan'])}"
     await db.messages.insert_one(Message(message_id=new_id("msg"), conversation_id=o["conversation_id"], sender_id=user.user_id, text=text, created_at=now()).model_dump())
     await db.conversations.update_one({"conversation_id": o["conversation_id"]}, {"$set": {"last_message": text, "updated_at": now()}})
-    o["status"] = status
     return Offer(**o)
 
 
@@ -481,7 +536,7 @@ async def own_conv(conv_id: str, user: User) -> dict:
 
 @api.get("/conversations", response_model=List[Conversation])
 async def list_convs(user: User = Auth):
-    docs = await db.conversations.find({"$or": [{"business_id": user.user_id}, {"presenter_id": user.user_id}]}, {"_id": 0}).sort("updated_at", DESCENDING).to_list(100)
+    docs = await db.conversations.find({"$or": [{"business_id": user.user_id}, {"presenter_id": user.user_id}]}, {"_id": 0}).sort([("updated_at", DESCENDING), ("conversation_id", ASCENDING)]).to_list(100)
     return [Conversation(**d) for d in docs]
 
 
@@ -493,7 +548,7 @@ async def get_conv(conv_id: str, user: User = Auth):
 @api.get("/conversations/{conv_id}/messages", response_model=List[Message])
 async def list_messages(conv_id: str, user: User = Auth):
     await own_conv(conv_id, user)
-    docs = await db.messages.find({"conversation_id": conv_id}, {"_id": 0}).sort("created_at", DESCENDING).limit(200).to_list(200)
+    docs = await db.messages.find({"conversation_id": conv_id}, {"_id": 0}).sort([("created_at", DESCENDING), ("message_id", DESCENDING)]).limit(200).to_list(200)
     return [Message(**d) for d in reversed(docs)]
 
 
@@ -531,6 +586,7 @@ async def seed():
                       photos=[img + U], price_per_video=price, price_part_time=price * 12, price_full_time=price * 28,
                       online=True, is_seed=True).model_dump()
         p["created_at"] = now()
+        p["is_listed"] = True
         await db.presenters.update_one({"user_id": uid}, {"$setOnInsert": p}, upsert=True)
 
 

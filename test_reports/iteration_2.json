@@ -1,0 +1,38 @@
+{
+  "summary": "Public preview backend regression passed 18/18 in 10.92s. Strengthened assertions verify repeated deterministic paging, UTC offsets on offers/conversations/messages, hidden empty profiles, profile name/photo propagation, oversized uploads and business upload rejection. Mobile 375x667 preview renders seeded catalogue without persistent splash/error overlay. All six Welcome entry points show the unavailable sign-in card; normal and deep-link back work with a 44x44 back target. Send-offer route redirects guests to Welcome, so its retry UI was not dynamically verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Real Clerk Google/email sign-in", "issue": "Externally blocked: clerk.hireavatar.co fails DNS resolution (browser ERR_NAME_NOT_RESOLVED). Fallback works; no real sign-in was attempted.", "affected_testIDs": ["sign-in-not-configured"]},
+      {"flow": "Shared production Brandface data", "issue": "No Git remote is configured. Existing API/catalogue is local seeded data; production sharing with hireavatar.co is not verified.", "affected_testIDs": ["welcome-presenter-strip"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_hireavatar_api.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/tests/preview_recovery.py",
+    "/root/.emergent/automation_output/20261122_035645_9b101a0b1106/console_20261122_035645.log"
+  ],
+  "action_items": [
+    "Restore Clerk DNS/domain verification, then test real Google/email login, account-sync failure recovery, and authenticated send-offer retry/close behavior.",
+    "Provide the Brandface source repository and production API configuration to validate shared presenters/offers.",
+    "Consider a bounded request timeout in src/api.ts: fetch has no AbortController, so a stalled presenter request never reaches the send-offer error state (code-review risk, not reproduced).",
+    "Add stable testIDs to clickable Welcome presenter-strip cards; review the expo-router unstable-native-tabs deprecation warning."
+  ],
+  "critical_code_review_comments": [
+    "send-offer now handles rejected presenter queries, but src/api.ts:80 has no bounded timeout; a request that remains pending can still keep q.isLoading true. Not dynamically tested because route authentication is unavailable.",
+    "app/index.tsx:42 clickable presenter cards have no testID.",
+    "backend upload validation checks signatures, not complete image decoding; malformed signature-bearing files remain an untested validation risk.",
+    "frontend uses the existing EXPO_PUBLIC_BACKEND_URL key; EXPO_BACKEND_URL is absent. Public requests succeeded; environment files were not modified."
+  ],
+  "updated_files": ["/app/backend/tests/test_hireavatar_api.py", "/app/tests/preview_recovery.py", "/app/test_reports/iteration_2.json", "/app/test_result.md"],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% of executed public checks; authenticated send-offer and real sign-in blocked"},
+  "seed_data_creation": "Created only isolated TEST_ users/sessions/profiles/offers/conversations/messages. Existing pytest teardown deletes by exact created ids. Valid upload used the documented test presenter without editing its account/profile; uploaded file metadata was removed by its exact path, but the external storage object remains (no deletion endpoint). No seed/reset scripts ran.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Use existing EXPO_PUBLIC_BACKEND_URL from frontend/.env. Run pytest /app/backend/tests/test_hireavatar_api.py -v --tb=short --junitxml=/app/test_reports/pytest/pytest_results.xml. Internal sessions are DEV-ONLY AUTH BYPASS, not proof of Clerk integration. Browser-tool checks executed successfully. Standalone /app/tests/preview_recovery.py cannot execute locally because playwright is not installed (ModuleNotFoundError); use browser automation or provision Playwright plus Chromium. Browser showed only expected Clerk DNS errors and a native-tabs deprecation warning. Backend/Expo logs showed no current runtime exception. Conversation concurrency was code-reviewed but not stress-tested; signed-in auth recovery and send-offer loading/retry remain unverified.",
+  "rca_of_issue": "Clerk host is unresolved; preflight fetch rejects, Providers marks unavailable and leaves ClerkProvider unmounted. Guest pages remain interactive and sign-in renders its unavailable card. Guest Gate redirects offer routes before a presenter-load retry state can be tested. Shared-data verification is separately blocked by missing source repository/remote."
+}

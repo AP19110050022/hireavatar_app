@@ -52,18 +52,33 @@ export default function SendOffer() {
     }
   };
 
-  if (!q.data) return <View style={styles.root}><Loading /></View>;
+  const header = (
+    <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+      <PressScale onPress={() => goBack(router)} style={styles.close} testID="send-offer-close-button">
+        <Ionicons name="close" size={22} color={colors.onSurface} />
+      </PressScale>
+      <Text style={styles.title}>Send offer</Text>
+      <View style={{ width: 44 }} />
+    </View>
+  );
+
+  if (q.isLoading) return <View style={styles.root} testID="send-offer-screen">{header}<Loading testID="send-offer-loading" /></View>;
+  if (!q.data) return (
+    <View style={styles.root} testID="send-offer-screen">
+      {header}
+      <View style={styles.errorState} testID="send-offer-load-error">
+        <Ionicons name="cloud-offline-outline" size={40} color={colors.muted} />
+        <Text style={styles.errorTitle}>Couldn’t load this presenter</Text>
+        <Text style={styles.errorBody}>{q.error instanceof Error ? q.error.message : "Please check your connection and try again."}</Text>
+        <Button title="Try again" variant="glass" onPress={() => q.refetch()} testID="send-offer-retry-button" />
+      </View>
+    </View>
+  );
   const p = q.data;
 
   return (
     <View style={styles.root} testID="send-offer-screen">
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <PressScale onPress={() => goBack(router)} style={styles.close} testID="send-offer-close-button">
-          <Ionicons name="close" size={22} color={colors.onSurface} />
-        </PressScale>
-        <Text style={styles.title}>Send offer</Text>
-        <View style={{ width: 44 }} />
-      </View>
+      {header}
       <KeyboardAwareScrollView bottomOffset={110} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}>
         <View style={styles.who}>
           <Image source={imgUrl(p.photos[0])} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" />
@@ -127,5 +142,8 @@ const styles = StyleSheet.create({
   area: { minHeight: 120, paddingTop: 14 },
   hint: { color: colors.muted, fontSize: 12, marginTop: spacing.sm, lineHeight: 17 },
   error: { color: colors.error, fontSize: 14, fontWeight: "600", marginTop: spacing.md },
+  errorState: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, paddingHorizontal: spacing.xxl },
+  errorTitle: { color: colors.onSurface, fontSize: 20, fontWeight: "800", textAlign: "center" },
+  errorBody: { color: colors.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: colors.surfaceElevated, borderTopWidth: 1, borderTopColor: colors.border },
 });

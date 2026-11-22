@@ -101,3 +101,75 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: "Connect the Brandface GitHub backend so mobile and hireavatar.co share presenters/offers; test Clerk Google/email sign-in after domain verification; fix send-offer loading, sign-in recovery, time zones, and remaining review findings."
+## backend:
+##   - task: "Offer, presenter, upload, and UTC reliability fixes"
+##     implemented: true
+##     working: true
+##     file: "/app/backend/server.py"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##       - working: true
+##         agent: "main"
+##         comment: "Added timezone-aware Mongo reads, deterministic list ordering, atomic offer response/conversation creation, profile denormalization, hidden empty presenter cards, and verified image uploads. Local API regression suite passed 18/18."
+##       - working: true
+##         agent: "testing"
+##         comment: "Public URL pytest passed 18/18. Added assertions for repeated paging, UTC offer/conversation/message output, hidden empty profiles, persisted name/photo propagation, oversized upload and business upload rejection. Internal sessions bypass Clerk; concurrency stress was not tested."
+## frontend:
+##   - task: "Sign-in recovery and Clerk connectivity fallback"
+##     implemented: true
+##     working: true
+##     file: "/app/frontend/src/auth.tsx, /app/frontend/app/_layout.tsx"
+##     stuck_count: 1
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##       - working: true
+##         agent: "main"
+##         comment: "A Clerk domain preflight prevents the SDK from mounting while DNS is unresolved, so the marketplace and a clear sign-in unavailable state remain interactive. Screenshot verified. Real Clerk sign-in remains externally blocked by clerk.hireavatar.co NXDOMAIN."
+##       - working: true
+##         agent: "testing"
+##         comment: "375x667 public preview loads seeded presenter cards without permanent splash or error overlay. All six Welcome entry points open a clear unavailable card; back and cold/deep-link back work. Back target measures 44x44. Clerk DNS still fails; real Google/email and signed-in account-sync recovery remain unverified."
+##   - task: "Send-offer loading failure state"
+##     implemented: true
+##     working: "NA"
+##     file: "/app/frontend/app/offer/[presenterId].tsx"
+##     stuck_count: 0
+##     priority: "medium"
+##     needs_retesting: true
+##     status_history:
+##       - working: "NA"
+##         agent: "main"
+##         comment: "Added header, retry, error copy, and no endless spinner when presenter loading fails. Requires authenticated route validation."
+##       - working: "NA"
+##         agent: "testing"
+##         comment: "Direct /offer/TEST_missing_presenter redirects to Welcome through the signed-out gate. Retry error state exists in code but cannot be dynamically verified without Clerk. src/api.ts fetch lacks a timeout, leaving stalled requests a potential endless-loading risk."
+##       - working: "NA"
+##         agent: "main"
+##         comment: "Added a 15-second API request timeout, so a stalled presenter request now reaches the retry state instead of loading indefinitely. Final authenticated route verification remains blocked by Clerk DNS."
+## metadata:
+##   created_by: "main_agent"
+##   version: "1.0"
+##   test_sequence: 2
+##   run_ui: true
+## test_plan:
+##   current_focus:
+##     - "Run backend API regression including deterministic paging and UTC timestamps"
+##     - "Verify unauthenticated Expo fallback does not hang or show an error overlay when Clerk DNS is unavailable"
+##     - "Verify send-offer error state through a failing presenter request if route access can be arranged"
+##   stuck_tasks:
+##     - "Real Clerk sign-in is blocked until clerk.hireavatar.co DNS resolves"
+##   test_all: true
+##   test_priority: "high_first"
+## agent_communication:
+##   - agent: "main"
+##     message: "No Git remote or Brandface backend source exists in this workspace, so live backend sharing cannot be connected yet. Do not attempt real Clerk sign-in while DNS remains NXDOMAIN. Test internal-token API flows and guest preview fallback."
+##   - agent: "testing"
+##     message: "Iteration 2 report: /app/test_reports/iteration_2.json. 18/18 public API tests passed; guest fallback and navigation passed. No functional application code changed. Remaining blockers: real Clerk DNS, production Brandface source, authenticated send-offer access. Code-review risks: unbounded API fetch, signature-only image validation, missing strip-card testIDs; console also warns about deprecated unstable-native-tabs."
+##   - agent: "testing"
+##     message: "The saved standalone UI runner requires Playwright/Chromium; local invocation failed with ModuleNotFoundError because Playwright is absent. The equivalent checks DID execute successfully through the browser automation tool. This is a test-runner dependency limitation, not an app failure."
+##   - agent: "main"
+##     message: "Post-test hardening added decoded image validation, bounded API requests, and presenter-card test IDs. Final checks passed: 18/18 backend tests, TypeScript, lint, backend health, and phone-size guest preview."

@@ -77,17 +77,26 @@ export async function request<T>(path: string, token: string | null, init: Reque
   const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (init.body && !(init.body instanceof FormData)) headers["Content-Type"] = "application/json";
-  const res = await fetch(`${BASE}/api${path}`, { ...init, headers });
-  if (!res.ok) {
-    let msg = `Something went wrong (${res.status})`;
-    try {
-      const j = await res.json();
-      if (typeof j.detail === "string") msg = j.detail;
-      else if (Array.isArray(j.detail)) msg = j.detail[0]?.msg ?? msg;
-    } catch {}
-    const err = new Error(msg) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), 15_000);
+  try {
+    const res = await fetch(`${BASE}/api${path}`, { ...init, signal: init.signal ?? timeout.signal, headers });
+    if (!res.ok) {
+      let msg = `Something went wrong (${res.status})`;
+      try {
+        const j = await res.json();
+        if (typeof j.detail === "string") msg = j.detail;
+        else if (Array.isArray(j.detail)) msg = j.detail[0]?.msg ?? msg;
+      } catch {}
+      const err = new Error(msg) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  } catch (error) {
+    if (timeout.signal.aborted) throw new Error("The request took too long. Please try again.");
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
-  return res.json();
 }

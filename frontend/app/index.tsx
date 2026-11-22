@@ -39,7 +39,7 @@ export default function Welcome() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip} testID="welcome-presenter-strip">
           {(data ?? []).filter((p) => p.photos.length > 0).map((p, i) => (
             <Animated.View key={p.user_id} entering={FadeInDown.delay(120 + i * 60).duration(450)}>
-              <PressScale onPress={goSignIn} style={styles.stripCard}>
+              <PressScale onPress={goSignIn} style={styles.stripCard} testID={`welcome-presenter-card-${p.user_id}`}>
                 <Image source={imgUrl(p.photos[0])} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={200} />
                 <LinearGradient colors={[colors.scrimClear, colors.scrimClear, colors.scrim]} style={StyleSheet.absoluteFill} />
                 <View style={styles.stripInfo}>
@@ -80,7 +80,7 @@ export default function Welcome() {
               <View style={styles.planIcon}><Ionicons name={p.icon as any} size={20} color={colors.onSurface} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.planTitle}>{p.title}</Text>
-                <Text style={styles.planDesc} numberOfLines={1}>{p.desc}</Text>
+                <Text style={styles.planDesc}>{p.desc}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.subtle} />
             </PressScale>
@@ -98,8 +98,8 @@ export default function Welcome() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg },
-  login: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.lg, height: 40, justifyContent: "center" },
-  loginText: { color: colors.onSurface, fontWeight: "800", fontSize: 14 },
+  login: { backgroundColor: colors.brand, borderRadius: radius.pill, paddingHorizontal: spacing.lg, height: 44, justifyContent: "center" },
+  loginText: { color: colors.onBrand, fontWeight: "800", fontSize: 14 },
   h1: { color: colors.onSurface, fontSize: 34, lineHeight: 37, fontWeight: "800", letterSpacing: -0.8, marginTop: spacing.xxl, paddingHorizontal: spacing.lg },
   sub: { color: colors.muted, fontSize: 17, lineHeight: 24, marginTop: spacing.md, paddingHorizontal: spacing.lg },
   strip: { gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },

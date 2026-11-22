@@ -12,14 +12,24 @@ Expo app (iOS/Android) for HireAvatar marketplace. Presenters set prices & recei
 - Frontend: Expo Router. `/` welcome, `/sign-in` (Google SSO + email code via @clerk/expo), `/role`, tabs Browse/Offers/Messages/Profile (NativeTabs on iOS 26+), `/presenter/[id]`, `/offer/[presenterId]` modal, `/chat/[id]`, `/edit-profile` modal. Root-layout auth gate. React Query caching, infinite paging, pull-to-refresh, expo-image disk cache.
 
 ## Implemented (2026-06)
-- Welcome, sign-in (needs Clerk keys), role choice, browse+search+category chips+paging, presenter profile with 3 plans, send offer → conversation, accept/decline, chat (4s polling), presenter profile/photo/price editing with permission flow, profile/sign-out.
-- Fixes after test 1: stable paging sort, tap areas of buttons, back button when screen opened directly.
+- Welcome, sign-in, role choice, browse+search+category chips+paging, presenter profile with 3 plans, send offer → conversation, accept/decline, chat (4s polling), presenter profile/photo/price editing with permission flow, profile/sign-out.
+- Reliability fixes: deterministic pagination, timezone-aware Mongo reads, atomic first-conversation creation and offer responses, profile name/photo propagation, hidden incomplete presenter cards, decoded image upload validation, and bounded frontend API requests.
+- UX fixes: direct-route back navigation, correct touch targets, branded unknown-route screen, complete plan descriptions, send-offer retry/error state, stable presenter-card test IDs, and a Clerk connectivity preflight that prevents the guest app from hanging or crashing when Clerk is unavailable.
 
 ## Sign-in status (2026-06)
 - Live Clerk key (pk_live, Frontend API clerk.hireavatar.co) saved in frontend .env; backend uses CLERK_FRONTEND_API="clerk.hireavatar.co" → JWKS https://clerk.hireavatar.co/.well-known/jwks.json, issuer checked. No Clerk secret key needed; display name/email/photo synced via POST /api/me/sync.
-- Blocked: clerk.hireavatar.co has no DNS record (NXDOMAIN). User chose to add Clerk domain CNAME records at GoDaddy. Re-test sign-in once DNS resolves.
+- Blocked: clerk.hireavatar.co has no DNS record (NXDOMAIN). The mobile app now keeps guest browsing usable and renders an honest unavailable-sign-in card instead of mounting the failing Clerk SDK. Re-test Google and email sign-in once DNS resolves.
+
+## Shared website data status (2026-06)
+- Blocked: this workspace has no Git remote and no Brandface backend source/configuration. The app currently uses the local FastAPI/MongoDB backend with seeded presenters, so production presenters and offers are not yet shared with hireavatar.co.
+- To complete this, the Brandface repository and production API/database integration must be linked to this workspace; do not replace credentials or database settings directly.
+
+## Verification (2026-06)
+- Backend regression: 18/18 tests passed after the reliability and upload-validation changes.
+- Frontend: lint and `yarn tsc --noEmit` passed. Phone-size browser validation confirmed the guest marketplace renders and presenter-card test IDs are stable.
+- Real Clerk sign-in and authenticated send-offer retry remain unverified because the Clerk domain is unresolved.
 
 ## Backlog
-- P0: Add Clerk keys (EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY) and test real sign-in; link original brandface backend/DB to share live data.
-- P1: Send-offer error state; /me failure handling in auth bridge; tz-aware Mongo dates; offer race duplicate-key; hide blank presenter profiles; denormalized names going stale; upload type sniffing; +not-found screen; Log in button 44px.
+- P0: Verify Clerk DNS, then test real Google/email sign-in, account sync, and authenticated send-offer retry; link the original Brandface backend/DB to share live data.
+- P1: Add an authenticated device test for send-offer retry and test first-conversation concurrency under load.
 - P2: Payments, reviews/ratings, favourites, portfolio videos, plan tracking, store publishing.

@@ -33,12 +33,12 @@ export default function SignInScreen() {
         <View style={styles.head}>
           <Logo size={26} />
           <Text style={styles.h1}>Welcome</Text>
-          <Text style={styles.sub}>Use the same account as hireavatar.co. New here? We'll create one for you.</Text>
+          <Text style={styles.sub}>Use the same account as hireavatar.co. New here? We’ll create one for you.</Text>
         </View>
         {configured ? <ClerkForm /> : (
           <View style={styles.card} testID="sign-in-not-configured">
             <Text style={styles.cardTitle}>Sign-in is almost ready</Text>
-            <Text style={styles.sub}>The account service hasn't been connected yet. Please check back shortly.</Text>
+            <Text style={styles.sub}>The account service hasn’t been connected yet. Please check back shortly.</Text>
           </View>
         )}
       </KeyboardAwareScrollView>

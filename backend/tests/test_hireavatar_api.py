@@ -73,6 +73,9 @@ class TestPublic:
         p2 = requests.get(f"{API}/presenters", params={"skip": 3, "limit": 3}).json()
         assert len(p1) == 3 and len(p2) == 3
         assert not set(x["user_id"] for x in p1) & set(x["user_id"] for x in p2)
+        for _ in range(3):
+            assert requests.get(f"{API}/presenters", params={"skip": 0, "limit": 3}).json() == p1
+            assert requests.get(f"{API}/presenters", params={"skip": 3, "limit": 3}).json() == p2
         assert requests.get(f"{API}/presenters", params={"limit": 0}).status_code == 422
         assert requests.get(f"{API}/presenters", params={"limit": 51}).status_code == 422
 
@@ -129,6 +132,7 @@ class TestAuth:
         me = requests.get(f"{API}/presenters/me", headers=h)
         assert me.status_code == 200 and me.json()["user_id"] == uid and me.json()["name"] == "TEST_Pres"
         assert requests.get(f"{API}/presenters/{uid}").status_code == 200
+        assert not any(p["user_id"] == uid for p in requests.get(f"{API}/presenters", params={"limit": 50}).json())
         assert requests.post(f"{API}/me/role", headers=h, json={"role": "business"}).status_code == 400
 
 
@@ -173,6 +177,12 @@ class TestUpload:
     def test_upload_rejects_non_image_and_unauth(self):
         r = requests.post(f"{API}/upload", headers=PRES, files={"file": ("a.txt", b"hello", "text/plain")})
         assert r.status_code == 400
+        r = requests.post(f"{API}/upload", headers=PRES, files={"file": ("TEST_fake.png", b"\x89PNG\r\n\x1a\nnot-a-real-image", "image/png")})
+        assert r.status_code == 400
+        r = requests.post(f"{API}/upload", headers=BIZ, files={"file": ("TEST_a.png", b"x", "image/png")})
+        assert r.status_code == 403
+        r = requests.post(f"{API}/upload", headers=PRES, files={"file": ("TEST_large.png", b"x" * (8 * 1024 * 1024 + 1), "image/png")})
+        assert r.status_code == 413
         r = requests.post(f"{API}/upload", files={"file": ("a.png", b"x", "image/png")})
         assert r.status_code == 401
         assert requests.get(f"{API}/files/hireavatar/uploads/nope.png").status_code == 404
@@ -196,6 +206,7 @@ class TestOffersChat:
         CREATED["offers"].append(o["offer_id"])
         CREATED["convs"].append(o["conversation_id"])
         assert o["status"] == "pending" and o["business_name"] == "Acme" and o["presenter_name"] == "TEST_OfferPres"
+        assert datetime.fromisoformat(o["created_at"].replace("Z", "+00:00")).utcoffset() == timedelta(0)
 
         # both sides see it + status filter
         assert any(x["offer_id"] == o["offer_id"] for x in requests.get(f"{API}/offers", headers=BIZ, params={"limit": 100}).json())
@@ -234,6 +245,18 @@ class TestOffersChat:
         msgs = requests.get(f"{API}/conversations/{cid}/messages", headers=BIZ).json()
         assert msgs[-1]["text"] == "TEST_ hello" and msgs[-1]["sender_id"] == pid
         assert requests.get(f"{API}/conversations/{cid}", headers=BIZ).json()["last_message"] == "TEST_ hello"
+        # UTC output and denormalized profile updates must persist on subsequent reads.
+        for item in msgs:
+            assert datetime.fromisoformat(item["created_at"].replace("Z", "+00:00")).utcoffset() == timedelta(0)
+        offers = requests.get(f"{API}/offers", headers=ph).json()
+        assert all(datetime.fromisoformat(item["created_at"].replace("Z", "+00:00")).utcoffset() == timedelta(0) for item in offers)
+        conv = requests.get(f"{API}/conversations/{cid}", headers=ph).json()
+        assert datetime.fromisoformat(conv["updated_at"].replace("Z", "+00:00")).utcoffset() == timedelta(0)
+        edited = presenter_payload(name="TEST_Renamed", photos=["https://example.com/TEST_photo.png"])
+        assert requests.put(f"{API}/presenters/me", headers=ph, json=edited).status_code == 200
+        assert requests.get(f"{API}/presenters/{pid}").json()["name"] == "TEST_Renamed"
+        assert all(item["presenter_name"] == "TEST_Renamed" and item["presenter_photo"] == edited["photos"][0] for item in requests.get(f"{API}/offers", headers=ph).json())
+        assert requests.get(f"{API}/conversations/{cid}", headers=ph).json()["presenter_name"] == "TEST_Renamed"
 
         # non-participant -> 404
         for path in [f"/conversations/{cid}", f"/conversations/{cid}/messages"]:
