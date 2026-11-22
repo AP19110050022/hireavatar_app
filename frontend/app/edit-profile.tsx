@@ -1,18 +1,16 @@
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BASE, imgUrl, Presenter, request } from "@/src/api";
-import { useApi, useAppAuth } from "@/src/auth";
+import { imgUrl, Presenter, request } from "@/src/api";
+import { useApi } from "@/src/auth";
 import { goBack, Button, Chip, Loading, PressScale, useToast } from "@/src/components/ui";
 import { colors, radius, spacing } from "@/src/theme";
-import { uploadForm } from "@/src/utils/upload";
 
 type Form = Omit<Presenter, "user_id" | "online" | "price_per_video" | "price_part_time" | "price_full_time" | "languages"> & {
   price_per_video: string; price_part_time: string; price_full_time: string; languages: string;
@@ -24,14 +22,10 @@ export default function EditProfile() {
   const api = useApi();
   const toast = useToast();
   const qc = useQueryClient();
-  const { getToken } = useAppAuth();
   const q = useQuery({ queryKey: ["my-presenter"], queryFn: () => api<Presenter>("/presenters/me") });
   const cats = useQuery({ queryKey: ["categories"], queryFn: () => request<string[]>("/categories", null), staleTime: Infinity });
   const [f, setF] = useState<Form | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [permBlocked, setPermBlocked] = useState(false);
-  const [askInfo, setAskInfo] = useState(false);
 
   useEffect(() => {
     if (q.data && !f) {
@@ -41,43 +35,6 @@ export default function EditProfile() {
   }, [q.data, f]);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((old) => (old ? { ...old, [k]: v } : old));
-
-  const pickFlow = async () => {
-    if (Platform.OS !== "web") {
-      const perm = await ImagePicker.getMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        if (!perm.canAskAgain) return setPermBlocked(true);
-        if (!askInfo) return setAskInfo(true); // show benefit explanation first
-        const req = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        setAskInfo(false);
-        if (!req.granted) {
-          if (!req.canAskAgain) setPermBlocked(true);
-          else toast("Photo access is needed to add photos", "error");
-          return;
-        }
-      }
-    }
-    setPermBlocked(false);
-    setAskInfo(false);
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7, allowsEditing: true, aspect: [3, 4] });
-    if (res.canceled || !res.assets?.[0]) return;
-    const a = res.assets[0];
-    setUploading(true);
-    try {
-      const token = await getToken();
-      const r = await uploadForm(`${BASE}/api/upload`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        files: { file: { uri: a.uri, name: a.fileName ?? "photo.jpg", mimeType: a.mimeType ?? "image/jpeg" } },
-      });
-      if (!r.ok) throw new Error(r.status === 402 ? "Photo storage is temporarily unavailable" : "Upload failed");
-      const { url } = await r.json();
-      setF((old) => (old ? { ...old, photos: [...old.photos, url].slice(0, 6) } : old));
-    } catch (e: any) {
-      toast(e.message, "error");
-    } finally {
-      setUploading(false);
-    }
-  };
 
   const save = async () => {
     if (!f) return;
@@ -126,33 +83,14 @@ export default function EditProfile() {
         <View style={styles.card}>
           <Text style={styles.label}>Photos</Text>
           <View style={styles.photos}>
-            {f.photos.map((u, i) => (
+            {f.photos.slice(0, 1).map((u, i) => (
               <View key={u + i} style={styles.photo}>
                 <Image source={imgUrl(u)} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" />
                 {i === 0 ? <View style={styles.cover}><Text style={styles.coverText}>Cover</Text></View> : null}
-                <PressScale onPress={() => set("photos", f.photos.filter((_, j) => j !== i))} style={styles.remove} testID={`edit-photo-remove-${i}`}>
-                  <Ionicons name="close" size={14} color={colors.onSurface} />
-                </PressScale>
               </View>
             ))}
-            {f.photos.length < 6 ? (
-              <PressScale onPress={pickFlow} disabled={uploading} style={[styles.photo, styles.add]} testID="edit-photo-add-button">
-                {uploading ? <ActivityIndicator color={colors.onSurface} /> : <Ionicons name="add" size={28} color={colors.onSurface} />}
-              </PressScale>
-            ) : null}
           </View>
-          {askInfo ? (
-            <View style={styles.permBox} testID="edit-photo-permission-info">
-              <Text style={styles.permText}>Allow photo access so you can add pictures brands will see on your profile.</Text>
-              <Button title="Allow photo access" variant="glass" onPress={pickFlow} testID="edit-photo-allow-button" />
-            </View>
-          ) : null}
-          {permBlocked ? (
-            <View style={styles.permBox} testID="edit-photo-permission-blocked">
-              <Text style={styles.permText}>Photo access is turned off. Turn it on in Settings to add photos.</Text>
-              <Button title="Open Settings" variant="glass" onPress={() => Linking.openSettings()} testID="edit-photo-open-settings-button" />
-            </View>
-          ) : null}
+          <Text style={styles.permText} testID="edit-photo-web-note">To keep one shared profile everywhere, update your cover photo on hireavatar.co.</Text>
         </View>
 
         <View style={styles.card}>
@@ -184,7 +122,7 @@ export default function EditProfile() {
       </KeyboardAwareScrollView>
       <KeyboardStickyView offset={{ opened: insets.bottom }}>
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-          <Button title="Save profile" onPress={save} loading={saving} disabled={uploading} testID="edit-profile-save-button" />
+          <Button title="Save profile" onPress={save} loading={saving} testID="edit-profile-save-button" />
         </View>
       </KeyboardStickyView>
     </View>

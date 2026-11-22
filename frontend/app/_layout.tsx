@@ -9,7 +9,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { AppAuthProvider, CLERK_FRONTEND_API, CLERK_KEY, useAppAuth } from "@/src/auth";
+import { API, BASE } from "@/src/api";
+import { AppAuthProvider, useAppAuth } from "@/src/auth";
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { Button, Loading, Logo, ToastProvider } from "@/src/components/ui";
 import { queryClient } from "@/src/query-client";
@@ -71,13 +72,18 @@ function Gate() {
 }
 
 function Providers({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<"checking" | "ready" | "unavailable">(CLERK_KEY ? "checking" : "unavailable");
+  const [config, setConfig] = useState<{ publishable_key: string; proxy_url: string } | null>(null);
+  const [state, setState] = useState<"checking" | "ready" | "unavailable">("checking");
   useEffect(() => {
-    if (!CLERK_KEY || !CLERK_FRONTEND_API) return;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-    fetch(`https://${CLERK_FRONTEND_API}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`, { mode: "no-cors", signal: controller.signal })
-      .then(() => setState("ready"))
+    fetch(`${API}/clerk/config`, { signal: controller.signal })
+      .then(async (response) => {
+        const next = await response.json();
+        if (!response.ok || !next.enabled || !next.publishable_key) throw new Error("Clerk is unavailable");
+        setConfig(next);
+        setState("ready");
+      })
       .catch(() => setState("unavailable"))
       .finally(() => clearTimeout(timeout));
     return () => { clearTimeout(timeout); controller.abort(); };
@@ -88,7 +94,7 @@ function Providers({ children }: { children: React.ReactNode }) {
   }
   if (state === "unavailable") return <AppAuthProvider enabled={false}>{children}</AppAuthProvider>;
   return (
-    <ClerkProvider publishableKey={CLERK_KEY} tokenCache={tokenCache}>
+    <ClerkProvider publishableKey={config!.publishable_key} proxyUrl={`${BASE}${config!.proxy_url || "/api/__clerk"}`} tokenCache={tokenCache}>
       <AppAuthProvider>{children}</AppAuthProvider>
     </ClerkProvider>
   );

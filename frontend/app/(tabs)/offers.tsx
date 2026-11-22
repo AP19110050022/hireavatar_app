@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { imgUrl, Offer, planTitle, rupees } from "@/src/api";
 import { useApi, useAppAuth } from "@/src/auth";
-import { Button, Chip, EmptyState, Loading, PressScale, StatusPill, useToast } from "@/src/components/ui";
+import { Button, Chip, EmptyState, Loading, PressScale, StatusPill } from "@/src/components/ui";
 import { usesNativeTabs } from "@/src/navigation";
 import { colors, radius, spacing } from "@/src/theme";
 
@@ -23,24 +23,12 @@ export default function OffersTab() {
   const insets = useSafeAreaInsets();
   const api = useApi();
   const router = useRouter();
-  const toast = useToast();
-  const qc = useQueryClient();
   const { me } = useAppAuth();
   const isPresenter = me?.role === "presenter";
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
   const [filter, setFilter] = useState("");
 
   const q = useQuery({ queryKey: ["offers", filter], queryFn: () => api<Offer[]>(`/offers?status=${filter}`) });
-  const respond = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: "accept" | "decline" }) =>
-      api<Offer>(`/offers/${id}/respond`, { method: "POST", body: JSON.stringify({ action }) }),
-    onSuccess: (o) => {
-      toast(o.status === "accepted" ? "Offer accepted" : "Offer declined", o.status === "accepted" ? "success" : "info");
-      qc.invalidateQueries({ queryKey: ["offers"] });
-      qc.invalidateQueries({ queryKey: ["conversations"] });
-    },
-    onError: (e: Error) => toast(e.message, "error"),
-  });
 
   const renderItem = ({ item, index }: { item: Offer; index: number }) => {
     const other = isPresenter ? item.business_name : item.presenter_name;
@@ -68,12 +56,7 @@ export default function OffersTab() {
             </PressScale>
           </View>
           {isPresenter && item.status === "pending" ? (
-            <View style={styles.actions}>
-              <Button title="Decline" variant="glass" style={{ flex: 1 }} loading={respond.isPending && respond.variables?.id === item.offer_id && respond.variables?.action === "decline"}
-                onPress={() => respond.mutate({ id: item.offer_id, action: "decline" })} testID={`offer-decline-button-${item.offer_id}`} />
-              <Button title="Accept" style={{ flex: 1 }} loading={respond.isPending && respond.variables?.id === item.offer_id && respond.variables?.action === "accept"}
-                onPress={() => respond.mutate({ id: item.offer_id, action: "accept" })} testID={`offer-accept-button-${item.offer_id}`} />
-            </View>
+            <Text style={styles.liveNote} testID={`offer-action-note-${item.offer_id}`}>Open this conversation to discuss the offer. Offer actions are currently managed on HireAvatar web.</Text>
           ) : null}
         </View>
       </Animated.View>
@@ -130,5 +113,5 @@ const styles = StyleSheet.create({
   budget: { color: colors.onSurface, fontWeight: "800", fontSize: 20 },
   chatBtn: { height: 36, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.surfaceSecondary, justifyContent: "center" },
   chatText: { color: colors.onSurface, fontWeight: "700", fontSize: 13 },
-  actions: { flexDirection: "row", gap: spacing.md },
+  liveNote: { color: colors.muted, fontSize: 12, lineHeight: 17 },
 });

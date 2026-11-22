@@ -1,4 +1,4 @@
-import { useAuth, useUser } from "@clerk/expo";
+import { useAuth } from "@clerk/expo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { reloadAppAsync } from "expo";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -8,15 +8,6 @@ import { request, User } from "@/src/api";
 const RAW_KEY = (process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || "").trim();
 // Only a real publishable key turns Clerk on; anything else keeps the app usable in "not configured" mode.
 export const CLERK_KEY = /^pk_(test|live)_[A-Za-z0-9+/=_-]+$/.test(RAW_KEY) ? RAW_KEY : "";
-export const CLERK_FRONTEND_API = (() => {
-  if (!CLERK_KEY) return "";
-  try {
-    const encoded = CLERK_KEY.split("_", 3)[2].replace(/-/g, "+").replace(/_/g, "/");
-    return atob(encoded + "=".repeat((4 - (encoded.length % 4)) % 4)).replace(/\$$/, "");
-  } catch {
-    return "";
-  }
-})();
 
 type AuthState = {
   status: "loading" | "signedOut" | "signedIn" | "recovery";
@@ -48,7 +39,6 @@ export function useApi() {
 
 function ClerkBridge({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn, getToken, signOut } = useAuth();
-  const { user } = useUser();
   const qc = useQueryClient();
   const [initializationTimedOut, setInitializationTimedOut] = useState(false);
   useEffect(() => {
@@ -65,14 +55,7 @@ function ClerkBridge({ children }: { children: React.ReactNode }) {
     retry: 1,
     queryFn: async () => {
       const token = await getToken();
-      return request<User>("/me/sync", token, {
-        method: "POST",
-        body: JSON.stringify({
-          email: user?.primaryEmailAddress?.emailAddress ?? "",
-          name: user?.fullName ?? "",
-          picture: user?.imageUrl ?? "",
-        }),
-      });
+      return request<User>("/me", token);
     },
   });
   const { data, error, isError, refetch } = meQ;
@@ -118,6 +101,6 @@ const unconfigured: AuthState = {
 };
 
 export function AppAuthProvider({ children, enabled = true }: { children: React.ReactNode; enabled?: boolean }) {
-  if (!CLERK_KEY || !enabled) return <Ctx.Provider value={unconfigured}>{children}</Ctx.Provider>;
+  if (!enabled) return <Ctx.Provider value={unconfigured}>{children}</Ctx.Provider>;
   return <ClerkBridge>{children}</ClerkBridge>;
 }

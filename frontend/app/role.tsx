@@ -1,31 +1,28 @@
 import Ionicons from "@react-native-vector-icons/ionicons";
 import React, { useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, StyleSheet, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Role, User } from "@/src/api";
-import { useApi, useAppAuth } from "@/src/auth";
+import { BASE, Role } from "@/src/api";
+import { useAppAuth } from "@/src/auth";
 import { Backdrop, Button, GradientTile, Logo, PressScale, useToast } from "@/src/components/ui";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function RoleScreen() {
   const insets = useSafeAreaInsets();
-  const api = useApi();
   const toast = useToast();
-  const { setMe, signOut, me } = useAppAuth();
+  const { signOut, me, retry } = useAppAuth();
   const [role, setRole] = useState<Role | null>(null);
-  const [biz, setBiz] = useState("");
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
     if (!role) return;
     setBusy(true);
     try {
-      const u = await api<User>("/me/role", { method: "POST", body: JSON.stringify({ role, business_name: biz }) });
-      setMe(u);
+      await Linking.openURL(`${BASE}/app`);
     } catch (e: any) {
-      toast(e.message, "error");
+      toast(e.message || "Couldn’t open HireAvatar setup", "error");
     } finally {
       setBusy(false);
     }
@@ -52,18 +49,15 @@ export default function RoleScreen() {
         contentContainerStyle={{ paddingTop: insets.top + spacing.lg, paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }}>
         <Logo size={24} />
         <Text style={styles.h1}>Hi{me?.name ? ` ${me.name.split(" ")[0]}` : ""}, how will you use HireAvatar?</Text>
-        <Text style={styles.sub}>You can only pick this once.</Text>
+        <Text style={styles.sub}>Set up your profile securely on HireAvatar, then return here to use the same data.</Text>
         <View style={{ gap: spacing.md, marginTop: spacing.xl }}>
           <Option value="presenter" title="I'm a presenter" body="Set your prices and get hired by brands." icon="play" from={colors.gradViolet} to={colors.gradPink} />
           <Option value="business" title="I'm a business" body="Find on-camera talent and send offers." icon="storefront-outline" from={colors.gradBlue} to={colors.gradViolet} />
         </View>
-        {role === "business" ? (
-          <TextInput value={biz} onChangeText={setBiz} placeholder="Business or brand name" placeholderTextColor={colors.subtle}
-            style={styles.input} testID="role-business-name-input" maxLength={60} />
-        ) : null}
       </KeyboardAwareScrollView>
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.lg }]}>
-        <Button title="Continue" onPress={save} loading={busy} disabled={!role || (role === "business" && !biz.trim())} testID="role-continue-button" />
+        <Button title="Complete setup on HireAvatar" onPress={save} loading={busy} disabled={!role} testID="role-continue-button" />
+        <Button title="I’ve finished setup — refresh" variant="glass" onPress={retry} testID="role-refresh-button" />
         <PressScale onPress={signOut} style={styles.link} testID="role-sign-out-button">
           <Text style={styles.linkText}>Sign out</Text>
         </PressScale>

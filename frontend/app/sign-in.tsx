@@ -51,9 +51,10 @@ function ClerkForm() {
   const signUpRes = useSignUp();
   const { startSSOFlow } = useSSO();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [mode, setMode] = useState<"email" | "signIn" | "signUp">("email");
-  const [busy, setBusy] = useState<"" | "google" | "send" | "verify">("");
+  const [mode, setMode] = useState<"signIn" | "signUp" | "verify">("signIn");
+  const [busy, setBusy] = useState<"" | "google" | "submit" | "verify">("");
   const [error, setError] = useState("");
 
   const google = async () => {
@@ -69,28 +70,28 @@ function ClerkForm() {
     }
   };
 
-  const sendCode = async () => {
+  const submitEmail = async () => {
     if (!signInRes.isLoaded || !signUpRes.isLoaded) return;
     const id = email.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(id)) return setError("Enter a valid email address");
+    if (password.length < 8) return setError("Password must be at least 8 characters");
     setError("");
-    setBusy("send");
+    setBusy("submit");
     try {
-      const attempt = await signInRes.signIn.create({ identifier: id });
-      const factor: any = attempt.supportedFirstFactors?.find((f: any) => f.strategy === "email_code");
-      if (!factor) throw new Error("Email codes aren't enabled for this account. Use Google instead.");
-      await signInRes.signIn.prepareFirstFactor({ strategy: "email_code", emailAddressId: factor.emailAddressId });
-      setMode("signIn");
-    } catch (e: any) {
-      if (e?.errors?.[0]?.code === "form_identifier_not_found") {
-        try {
-          await signUpRes.signUp.create({ emailAddress: id });
+      if (mode === "signIn") {
+        const result = await signInRes.signIn.create({ identifier: id, password });
+        if (result.status === "complete") await signInRes.setActive({ session: result.createdSessionId });
+        else setError("Additional verification is required. Continue on hireavatar.co.");
+      } else {
+        const result = await signUpRes.signUp.create({ emailAddress: id, password });
+        if (result.status === "complete") await signUpRes.setActive({ session: result.createdSessionId });
+        else {
           await signUpRes.signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-          setMode("signUp");
-        } catch (e2) {
-          setError(errMsg(e2, "Couldn't send the code"));
+          setMode("verify");
         }
-      } else setError(errMsg(e, "Couldn't send the code"));
+      }
+    } catch (e: any) {
+      setError(errMsg(e, mode === "signIn" ? "Couldn’t sign you in" : "Couldn’t create your account"));
     } finally {
       setBusy("");
     }
@@ -101,15 +102,9 @@ function ClerkForm() {
     setError("");
     setBusy("verify");
     try {
-      if (mode === "signIn") {
-        const r = await signInRes.signIn.attemptFirstFactor({ strategy: "email_code", code: code.trim() });
-        if (r.status === "complete") await signInRes.setActive({ session: r.createdSessionId });
-        else setError("Additional verification is required.");
-      } else {
-        const r = await signUpRes.signUp.attemptEmailAddressVerification({ code: code.trim() });
-        if (r.status === "complete") await signUpRes.setActive({ session: r.createdSessionId });
-        else setError("Please finish sign-up on hireavatar.co.");
-      }
+      const r = await signUpRes.signUp.attemptEmailAddressVerification({ code: code.trim() });
+      if (r.status === "complete") await signUpRes.setActive({ session: r.createdSessionId });
+      else setError("Please finish sign-up on hireavatar.co.");
     } catch (e) {
       setError(errMsg(e, "Invalid or expired code"));
     } finally {
@@ -123,21 +118,27 @@ function ClerkForm() {
       <View style={styles.orRow}>
         <View style={styles.line} /><Text style={styles.or}>or with email</Text><View style={styles.line} />
       </View>
-      {mode === "email" ? (
+      {mode !== "verify" ? (
         <>
           <TextInput value={email} onChangeText={setEmail} placeholder="you@company.com" placeholderTextColor={colors.subtle}
             autoCapitalize="none" autoComplete="email" keyboardType="email-address" style={styles.input} testID="sign-in-email-input"
-            returnKeyType="send" onSubmitEditing={sendCode} />
-          <Button title="Email me a code" variant="glass" onPress={sendCode} loading={busy === "send"} disabled={!email} testID="sign-in-send-code-button" />
+            returnKeyType="next" />
+          <TextInput value={password} onChangeText={setPassword} placeholder="Password" placeholderTextColor={colors.subtle}
+            secureTextEntry autoComplete={mode === "signIn" ? "current-password" : "new-password"} style={styles.input} testID="sign-in-password-input"
+            returnKeyType="done" onSubmitEditing={submitEmail} />
+          <Button title={mode === "signIn" ? "Sign in with email" : "Create account"} variant="glass" onPress={submitEmail} loading={busy === "submit"} disabled={!email || !password} testID="sign-in-email-submit-button" />
+          <PressScale onPress={() => { setError(""); setMode(mode === "signIn" ? "signUp" : "signIn"); }} style={styles.link} testID="sign-in-mode-toggle-button">
+            <Text style={styles.linkText}>{mode === "signIn" ? "New to HireAvatar? Create an account" : "Already have an account? Sign in"}</Text>
+          </PressScale>
         </>
       ) : (
         <>
-          <Text style={styles.sent} testID="sign-in-code-sent-text">We sent a 6-digit code to {email.trim()}</Text>
+          <Text style={styles.sent} testID="sign-in-code-sent-text">We sent a verification code to {email.trim()}</Text>
           <TextInput value={code} onChangeText={setCode} placeholder="Enter code" placeholderTextColor={colors.subtle}
             keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} style={[styles.input, styles.codeInput]} testID="sign-in-code-input"
             returnKeyType="done" onSubmitEditing={verify} />
           <Button title="Verify and continue" onPress={verify} loading={busy === "verify"} disabled={code.length < 6} testID="sign-in-verify-button" />
-          <PressScale onPress={() => { setMode("email"); setCode(""); }} style={styles.link} testID="sign-in-change-email-button">
+          <PressScale onPress={() => { setMode("signUp"); setCode(""); }} style={styles.link} testID="sign-in-change-email-button">
             <Text style={styles.linkText}>Use a different email</Text>
           </PressScale>
         </>
