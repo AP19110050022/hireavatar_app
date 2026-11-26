@@ -27,10 +27,12 @@ export default function SendOffer() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (q.data) {
-      const p = PLANS.find((x) => x.key === plan)!;
-      setBudget(String(q.data[p.priceKey]));
-    }
+    if (!q.data) return;
+    const timer = setTimeout(() => {
+      const selectedPlan = PLANS.find((item) => item.key === plan)!;
+      setBudget(String(q.data[selectedPlan.priceKey]));
+    }, 0);
+    return () => clearTimeout(timer);
   }, [q.data, plan]);
 
   const submit = async () => {

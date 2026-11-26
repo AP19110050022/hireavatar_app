@@ -12,6 +12,16 @@ import { Button, PressScale } from "@/src/components/ui";
 import { usesNativeTabs } from "@/src/navigation";
 import { colors, radius, spacing } from "@/src/theme";
 
+function ProfileRow({ icon, label, onPress, testID }: { icon: string; label: string; onPress: () => void; testID: string }) {
+  return (
+    <PressScale onPress={onPress} style={styles.row} testID={testID}>
+      <Ionicons name={icon as any} size={22} color={colors.onSurface} />
+      <Text style={styles.rowText}>{label}</Text>
+      <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
+    </PressScale>
+  );
+}
+
 export default function ProfileTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -19,14 +29,6 @@ export default function ProfileTab() {
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
   const isPresenter = me?.role === "presenter";
   const display = me?.role === "business" ? me.business_name || me.name : me?.name;
-
-  const Row = ({ icon, label, onPress, testID }: { icon: string; label: string; onPress: () => void; testID: string }) => (
-    <PressScale onPress={onPress} style={styles.row} testID={testID}>
-      <Ionicons name={icon as any} size={22} color={colors.onSurface} />
-      <Text style={styles.rowText}>{label}</Text>
-      <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
-    </PressScale>
-  );
 
   return (
     <View style={styles.root} testID="profile-screen">
@@ -44,11 +46,11 @@ export default function ProfileTab() {
         </View>
 
         <View style={styles.group}>
-          {isPresenter ? <Row icon="create-outline" label="Edit profile, photos & prices" onPress={() => router.push("/edit-profile")} testID="profile-edit-button" /> : null}
-          {isPresenter ? <Row icon="eye-outline" label="See my public profile" onPress={() => router.push("/browse")} testID="profile-public-button" /> : null}
-          {!isPresenter ? <Row icon="grid-outline" label="Browse presenters" onPress={() => router.push("/browse")} testID="profile-browse-button" /> : null}
-          <Row icon="file-tray-full-outline" label="My offers" onPress={() => router.push("/offers")} testID="profile-offers-button" />
-          <Row icon="globe-outline" label="Open hireavatar.co" onPress={() => WebBrowser.openBrowserAsync("https://www.hireavatar.co")} testID="profile-website-button" />
+          {isPresenter ? <ProfileRow icon="create-outline" label="Edit profile, photos & prices" onPress={() => router.push("/edit-profile")} testID="profile-edit-button" /> : null}
+          {isPresenter ? <ProfileRow icon="eye-outline" label="See my public profile" onPress={() => router.push("/browse")} testID="profile-public-button" /> : null}
+          {!isPresenter ? <ProfileRow icon="grid-outline" label="Browse presenters" onPress={() => router.push("/browse")} testID="profile-browse-button" /> : null}
+          <ProfileRow icon="file-tray-full-outline" label="My offers" onPress={() => router.push("/offers")} testID="profile-offers-button" />
+          <ProfileRow icon="globe-outline" label="Open hireavatar.co" onPress={() => WebBrowser.openBrowserAsync("https://www.hireavatar.co")} testID="profile-website-button" />
         </View>
 
         <Button title="Sign out" variant="danger" onPress={signOut} style={{ marginTop: spacing.xl }} testID="profile-sign-out-button" />

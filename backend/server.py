@@ -323,6 +323,28 @@ async def root():
     return {"message": "HireAvatar API"}
 
 
+@api.get("/clerk/config")
+async def clerk_config():
+    publishable_key = (
+        os.environ.get("CLERK_PUBLISHABLE_KEY")
+        or os.environ.get("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY")
+        or ""
+    ).strip()
+    enabled = bool(publishable_key and CLERK_FAPI)
+    if enabled:
+        try:
+            async with httpx.AsyncClient(timeout=5, follow_redirects=True) as c:
+                response = await c.get(f"https://{CLERK_FAPI}/.well-known/jwks.json")
+            enabled = response.status_code == 200
+        except Exception:
+            enabled = False
+    return {
+        "enabled": enabled,
+        "publishable_key": publishable_key if enabled else "",
+        "proxy_url": "",
+    }
+
+
 @api.get("/categories")
 async def categories():
     return CATEGORIES

@@ -38,7 +38,7 @@ export default function SignInScreen() {
         {configured ? <ClerkForm /> : (
           <View style={styles.card} testID="sign-in-not-configured">
             <Text style={styles.cardTitle}>Sign-in is almost ready</Text>
-            <Text style={styles.sub}>The account service hasn’t been connected yet. Please check back shortly.</Text>
+            <Text style={styles.sub}>Sign-in is temporarily unavailable. Please try again shortly.</Text>
           </View>
         )}
       </KeyboardAwareScrollView>

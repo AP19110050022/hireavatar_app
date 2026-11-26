@@ -10,7 +10,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { API, BASE } from "@/src/api";
-import { AppAuthProvider, useAppAuth } from "@/src/auth";
+import { AppAuthProvider, CLERK_KEY, useAppAuth } from "@/src/auth";
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { Button, Loading, Logo, ToastProvider } from "@/src/components/ui";
 import { queryClient } from "@/src/query-client";
@@ -73,8 +73,9 @@ function Gate() {
 
 function Providers({ children }: { children: React.ReactNode }) {
   const [config, setConfig] = useState<{ publishable_key: string; proxy_url: string } | null>(null);
-  const [state, setState] = useState<"checking" | "ready" | "unavailable">("checking");
+  const [state, setState] = useState<"checking" | "ready" | "unavailable">(!CLERK_KEY ? "unavailable" : "checking");
   useEffect(() => {
+    if (!CLERK_KEY) return;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     fetch(`${API}/clerk/config`, { signal: controller.signal })
@@ -93,8 +94,9 @@ function Providers({ children }: { children: React.ReactNode }) {
     return <View style={styles.bootstrap} testID="clerk-connectivity-check"><Logo size={30} /><Loading /></View>;
   }
   if (state === "unavailable") return <AppAuthProvider enabled={false}>{children}</AppAuthProvider>;
+  const clerkProxyUrl = config!.proxy_url ? `${BASE}${config!.proxy_url}` : undefined;
   return (
-    <ClerkProvider publishableKey={config!.publishable_key} proxyUrl={`${BASE}${config!.proxy_url || "/api/__clerk"}`} tokenCache={tokenCache}>
+    <ClerkProvider publishableKey={config!.publishable_key} proxyUrl={clerkProxyUrl} tokenCache={tokenCache}>
       <AppAuthProvider>{children}</AppAuthProvider>
     </ClerkProvider>
   );

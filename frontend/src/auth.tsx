@@ -42,10 +42,7 @@ function ClerkBridge({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const [initializationTimedOut, setInitializationTimedOut] = useState(false);
   useEffect(() => {
-    if (isLoaded) {
-      setInitializationTimedOut(false);
-      return;
-    }
+    if (isLoaded) return;
     const timeout = setTimeout(() => setInitializationTimedOut(true), 15000);
     return () => clearTimeout(timeout);
   }, [isLoaded]);

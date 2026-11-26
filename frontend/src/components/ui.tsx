@@ -41,7 +41,9 @@ export function PressScale({ children, onPress, style, disabled, testID }: {
       testID={testID}
       disabled={disabled}
       onPress={onPress}
+      // eslint-disable-next-line react-hooks/immutability -- Reanimated shared values are intentionally mutable.
       onPressIn={() => (s.value = withSpring(0.97, { damping: 20, stiffness: 400 }))}
+      // eslint-disable-next-line react-hooks/immutability -- Reanimated shared values are intentionally mutable.
       onPressOut={() => (s.value = withSpring(1, { damping: 20, stiffness: 400 }))}
       style={[style, a, disabled ? { opacity: 0.5 } : null]}
     >

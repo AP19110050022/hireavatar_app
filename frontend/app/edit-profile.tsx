@@ -16,6 +16,15 @@ type Form = Omit<Presenter, "user_id" | "online" | "price_per_video" | "price_pa
   price_per_video: string; price_part_time: string; price_full_time: string; languages: string;
 };
 
+function FormField({ label, field, form, set, ...rest }: { label: string; field: keyof Form; form: Form; set: <K extends keyof Form>(k: K, v: Form[K]) => void } & React.ComponentProps<typeof TextInput>) {
+  return (
+    <View style={{ marginTop: spacing.md }}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput value={form[field] as string} onChangeText={(text) => set(field, text as any)} placeholderTextColor={colors.subtle} style={styles.input} testID={`edit-${String(field)}-input`} {...rest} />
+    </View>
+  );
+}
+
 export default function EditProfile() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -28,10 +37,12 @@ export default function EditProfile() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (q.data && !f) {
+    if (!q.data || f) return;
+    const timer = setTimeout(() => {
       const p = q.data;
       setF({ ...p, languages: p.languages.join(", "), price_per_video: String(p.price_per_video), price_part_time: String(p.price_part_time), price_full_time: String(p.price_full_time) });
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [q.data, f]);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((old) => (old ? { ...old, [k]: v } : old));
@@ -63,13 +74,6 @@ export default function EditProfile() {
 
   if (!f) return <View style={styles.root}><Loading testID="edit-profile-loading" /></View>;
 
-  const Field = ({ label, k, ...rest }: { label: string; k: keyof Form } & React.ComponentProps<typeof TextInput>) => (
-    <View style={{ marginTop: spacing.md }}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput value={f[k] as string} onChangeText={(t) => set(k, t as any)} placeholderTextColor={colors.subtle} style={styles.input} testID={`edit-${String(k)}-input`} {...rest} />
-    </View>
-  );
-
   return (
     <View style={styles.root} testID="edit-profile-screen">
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
@@ -95,11 +99,11 @@ export default function EditProfile() {
 
         <View style={styles.card}>
           <Text style={styles.label}>About you</Text>
-          {Field({ label: "Name", k: "name", maxLength: 60 })}
-          {Field({ label: "Headline", k: "headline", maxLength: 80, placeholder: "e.g. Warm, relatable lifestyle host" })}
-          {Field({ label: "City", k: "city", maxLength: 40 })}
-          {Field({ label: "Languages (comma separated)", k: "languages", placeholder: "English, Hindi" })}
-          {Field({ label: "Bio", k: "bio", multiline: true, maxLength: 600, style: [styles.input, styles.area], textAlignVertical: "top" })}
+          <FormField label="Name" field="name" form={f} set={set} maxLength={60} />
+          <FormField label="Headline" field="headline" form={f} set={set} maxLength={80} placeholder="e.g. Warm, relatable lifestyle host" />
+          <FormField label="City" field="city" form={f} set={set} maxLength={40} />
+          <FormField label="Languages (comma separated)" field="languages" form={f} set={set} placeholder="English, Hindi" />
+          <FormField label="Bio" field="bio" form={f} set={set} multiline maxLength={600} style={[styles.input, styles.area]} textAlignVertical="top" />
         </View>
 
         <View style={styles.card}>
@@ -115,9 +119,9 @@ export default function EditProfile() {
 
         <View style={styles.card}>
           <Text style={styles.label}>Prices (₹)</Text>
-          {Field({ label: "Per Video", k: "price_per_video", keyboardType: "number-pad", maxLength: 8 })}
-          {Field({ label: "Part-time / month (8 videos + 1 shoot day)", k: "price_part_time", keyboardType: "number-pad", maxLength: 8 })}
-          {Field({ label: "Full-time / month (up to 20 videos)", k: "price_full_time", keyboardType: "number-pad", maxLength: 8 })}
+          <FormField label="Per Video" field="price_per_video" form={f} set={set} keyboardType="number-pad" maxLength={8} />
+          <FormField label="Part-time / month (8 videos + 1 shoot day)" field="price_part_time" form={f} set={set} keyboardType="number-pad" maxLength={8} />
+          <FormField label="Full-time / month (up to 20 videos)" field="price_full_time" form={f} set={set} keyboardType="number-pad" maxLength={8} />
         </View>
       </KeyboardAwareScrollView>
       <KeyboardStickyView offset={{ opened: insets.bottom }}>

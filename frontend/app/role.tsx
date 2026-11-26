@@ -1,13 +1,28 @@
 import Ionicons from "@react-native-vector-icons/ionicons";
+import * as WebBrowser from "expo-web-browser";
 import React, { useState } from "react";
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BASE, Role } from "@/src/api";
+import { Role } from "@/src/api";
 import { useAppAuth } from "@/src/auth";
 import { Backdrop, Button, GradientTile, Logo, PressScale, useToast } from "@/src/components/ui";
 import { colors, radius, spacing } from "@/src/theme";
+
+function RoleOption({ value, title, body, icon, from, to, role, setRole }: { value: Role; title: string; body: string; icon: string; from: string; to: string; role: Role | null; setRole: (role: Role) => void }) {
+  const on = role === value;
+  return (
+    <PressScale onPress={() => setRole(value)} style={[styles.opt, on ? styles.optOn : null]} testID={`role-option-${value}`}>
+      <GradientTile icon={icon} from={from} to={to} size={52} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.optTitle}>{title}</Text>
+        <Text style={styles.optBody}>{body}</Text>
+      </View>
+      <Ionicons name={on ? "checkmark-circle" : "ellipse-outline"} size={26} color={on ? colors.onSurface : colors.subtle} />
+    </PressScale>
+  );
+}
 
 export default function RoleScreen() {
   const insets = useSafeAreaInsets();
@@ -20,26 +35,12 @@ export default function RoleScreen() {
     if (!role) return;
     setBusy(true);
     try {
-      await Linking.openURL(`${BASE}/app`);
+      await WebBrowser.openBrowserAsync(`https://www.hireavatar.co/app/setup/${role}`);
     } catch (e: any) {
       toast(e.message || "Couldn’t open HireAvatar setup", "error");
     } finally {
       setBusy(false);
     }
-  };
-
-  const Option = ({ value, title, body, icon, from, to }: { value: Role; title: string; body: string; icon: string; from: string; to: string }) => {
-    const on = role === value;
-    return (
-      <PressScale onPress={() => setRole(value)} style={[styles.opt, on ? styles.optOn : null]} testID={`role-option-${value}`}>
-        <GradientTile icon={icon} from={from} to={to} size={52} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.optTitle}>{title}</Text>
-          <Text style={styles.optBody}>{body}</Text>
-        </View>
-        <Ionicons name={on ? "checkmark-circle" : "ellipse-outline"} size={26} color={on ? colors.onSurface : colors.subtle} />
-      </PressScale>
-    );
   };
 
   return (
@@ -51,8 +52,8 @@ export default function RoleScreen() {
         <Text style={styles.h1}>Hi{me?.name ? ` ${me.name.split(" ")[0]}` : ""}, how will you use HireAvatar?</Text>
         <Text style={styles.sub}>Set up your profile securely on HireAvatar, then return here to use the same data.</Text>
         <View style={{ gap: spacing.md, marginTop: spacing.xl }}>
-          <Option value="presenter" title="I'm a presenter" body="Set your prices and get hired by brands." icon="play" from={colors.gradViolet} to={colors.gradPink} />
-          <Option value="business" title="I'm a business" body="Find on-camera talent and send offers." icon="storefront-outline" from={colors.gradBlue} to={colors.gradViolet} />
+          <RoleOption value="presenter" title="I'm a presenter" body="Set your prices and get hired by brands." icon="play" from={colors.gradViolet} to={colors.gradPink} role={role} setRole={setRole} />
+          <RoleOption value="business" title="I'm a business" body="Find on-camera talent and send offers." icon="storefront-outline" from={colors.gradBlue} to={colors.gradViolet} role={role} setRole={setRole} />
         </View>
       </KeyboardAwareScrollView>
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.lg }]}>
